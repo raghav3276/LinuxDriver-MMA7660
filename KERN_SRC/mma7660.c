@@ -5,6 +5,7 @@
 #include <linux/input-polldev.h>
 #include <linux/debugfs.h>
 #include <linux/uaccess.h>
+#include <linux/pm_runtime.h>
 
 #define XOUT	0x00
 #define	 YOUT	0X01
@@ -194,6 +195,21 @@ void mma7660_poll(struct input_polled_dev *ipdev)
 	input_sync(idev);
 }
 
+void mma7660_open(struct input_polled_dev *ipdev)
+{
+	struct mma7660_dev *dev = ipdev->private;
+	struct i2c_client *client = dev->client;
+
+	pm_runtime_get_sync(&client->dev);
+}
+
+void mma7660_close(struct input_polled_dev *ipdev)
+{
+	struct mma7660_dev *dev = ipdev->private;
+	struct i2c_client *client = dev->client;
+
+	pm_runtime_put_sync_suspend(&client->dev);
+}
 
 ssize_t mma7660_debug_read(struct file *filp, char __user *ubuff,
 							size_t cnt, loff_t *off)
@@ -225,13 +241,24 @@ ssize_t mma7660_debug_read(struct file *filp, char __user *ubuff,
 
 int mma7660_debug_open(struct inode *inode, struct file *filp)
 {
-	filp->private_data = inode->i_private;
-	return 0;
+	struct mma7660_dev *dev = filp->private_data = inode->i_private;
+	struct i2c_client *client = dev->client;
+
+	return pm_runtime_get_sync(&client->dev);
+}
+
+int mma7660_debug_close(struct inode *inode, struct file *filp)
+{
+	struct mma7660_dev *dev = filp->private_data;
+	struct i2c_client *client = dev->client;
+
+	return pm_runtime_put_sync_suspend(&client->dev);
 }
 
 static const struct file_operations mma7660_debug_fops = {
-		.open	= mma7660_debug_open,
-		.read	= mma7660_debug_read
+		.open		= mma7660_debug_open,
+		.read		= mma7660_debug_read,
+		.release	= mma7660_debug_close
 };
 
 int mma7660_dev_init(struct mma7660_dev *dev)
@@ -252,19 +279,15 @@ int mma7660_dev_init(struct mma7660_dev *dev)
 	else
 		dev->shake_enable = true;
 
-	/* Put the device into active mode */
-	retval = i2c_smbus_write_byte_data(client, MODE, 0x01);
-	if (retval) {
-		dev_err(&client->dev, "Failed to push the device into active mode\n");
-		return retval;
-	}
-
 	return 0;
 }
 
 void mma7660_input_init(struct input_polled_dev *ipdev)
 {
 	struct input_dev *idev = ipdev->input;
+
+	ipdev->open = mma7660_open;	/* Only for power management purposes */
+	ipdev->close = mma7660_close;
 
 	ipdev->poll = mma7660_poll;
 	ipdev->poll_interval = MMA7660_POLL_INTERVAL;
@@ -345,6 +368,19 @@ int mma7660_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		goto dev_init_fail;
 	}
 
+	pm_runtime_set_active(&client->dev);
+	pm_runtime_enable(&client->dev);
+
+	/* After returning from here, the device's suspend function is called
+	 * which pushes the device into low-power state.
+	 * The device's resume will be called as and when the reference count
+	 * for the device (in terms of pm) is incremented, which is achieved
+	 * from the pm_runtime_get_(), called in the open() function.
+	 * Conversely, device's suspend function will be called as and when the
+	 * reference count of the device reaches 0, using pm_runtime_put_(),
+	 * which is called in close/release functions.
+	 */
+
 	return 0;
 
 dev_init_fail:
@@ -365,6 +401,8 @@ int mma7660_remove(struct i2c_client *client)
 
 	dev = i2c_get_clientdata(client);
 
+	pm_runtime_disable(&client->dev);
+
 	sysfs_remove_group(&client->dev.kobj, &mma7660_attr_grp);
 
 	/* put the device back to standby mode, just to save power */
@@ -379,13 +417,15 @@ int mma7660_remove(struct i2c_client *client)
 	return 0;
 }
 
-int mma7660_suspend(struct i2c_client *client, pm_message_t mesg)
+int mma7660_suspend(struct device *dev)
 {
+	struct i2c_client *client = to_i2c_client(dev);
 	return i2c_smbus_write_byte_data(client, MODE, 0x00);
 }
 
-int mma7660_resume(struct i2c_client *client)
+int mma7660_resume(struct device *dev)
 {
+	struct i2c_client *client = to_i2c_client(dev);
 	return i2c_smbus_write_byte_data(client, MODE, 0x01);
 }
 
@@ -393,18 +433,16 @@ static struct i2c_device_id mma7660_id[] = {
 		{"mma7660", 0}
 };
 
+static UNIVERSAL_DEV_PM_OPS(mma7660_pm, mma7660_suspend, mma7660_resume, NULL);
+
 static struct i2c_driver mma7660_driver = {
 		.driver		= {
-				.name = "mma7660"
+				.name	= "mma7660",
+				.pm		= &mma7660_pm
 		},
 		.probe		= mma7660_probe,
 		.remove		= mma7660_remove,
 		.id_table	= mma7660_id,
-
-#ifdef CONFIG_PM
-		.suspend	= mma7660_suspend,
-		.resume		= mma7660_resume
-#endif
 };
 
 static int __init mma7660_init(void)
