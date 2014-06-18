@@ -332,6 +332,7 @@ int mma7660_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	}
 
 	dev->ipdev->private = dev;
+	dev->ipdev->input->dev.parent = &client->dev;
 	mma7660_input_init(dev->ipdev);
 
 	retval = input_register_polled_device(dev->ipdev);
