@@ -1,11 +1,3 @@
-/*
-===============================================================================
-Driver Name		:		mma7660
-Author			:		A Raghavendra Ro <arrao@cdac.in>
-License			:		GPL
-Description		:		LINUX DEVICE DRIVER PROJECT
-===============================================================================
-*/
 
 #include <linux/init.h>
 #include <linux/module.h>
