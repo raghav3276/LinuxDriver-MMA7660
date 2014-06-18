@@ -242,7 +242,6 @@ ssize_t mma7660_debug_read(struct file *filp, char __user *ubuff,
 			"===========================\n",
 			xyz.xout, xyz.yout, xyz.zout, tilt_buf);
 
-//	simple_read_from_buffer(ubuff, cnt, off, buff, retcnt);
 	if (copy_to_user(ubuff, buff, retcnt))
 		return -EFAULT;
 
