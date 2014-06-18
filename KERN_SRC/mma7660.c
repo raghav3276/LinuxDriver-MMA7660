@@ -72,42 +72,45 @@ static const struct attribute_group mma7660_attr_grp = {
 		.attrs = mma7660_attrs
 };
 
-void mma7660_get_tilt_buf(u8 tilt_stat, char *tilt_buf)
+void mma7660_get_tilt_buf(struct mma7660_dev *dev, u8 tilt_stat, char *tilt_buf)
 {
-	if (tilt_stat & (1 << 7))
-		strcpy(tilt_buf, "Experiencing shake\n");
-	else
-		strcpy(tilt_buf, "Not experiencing shake\n");
+	if (dev->shake_enable) {
+		if (tilt_stat & (1 << 7))
+			strcpy(tilt_buf, "Experiencing shake\n");
+		else
+			strcpy(tilt_buf, "Not experiencing shake\n");
+	} else {
+		strcpy(tilt_buf, "Shake disabled\n");
+	}
 
-	strcat(tilt_buf, "Front-Back : ");
+	strcat(tilt_buf, "Facing : ");
 	switch (tilt_stat & 0x03) {
 	case 0:
 		strcat(tilt_buf, "Unknown\n");
 		break;
 	case 1:
-		strcat(tilt_buf, "Lying on front\n");
+		strcat(tilt_buf, "Front\n");
 		break;
 	case 2:
-		strcat(tilt_buf, "Lying on back\n");
+		strcat(tilt_buf, "Back\n");
 		break;
 	}
 
-	strcat(tilt_buf, "Potrait-Landscape : ");
 	switch ((tilt_stat & 0x1c) >> 2) {
 	case 0:
-		strcat(tilt_buf, "Unknown up/down/left/right\n");
+		strcat(tilt_buf, "Unknown PoLa");
 		break;
 	case 1:
-		strcat(tilt_buf, "Landscape mode towards left\n");
+		strcat(tilt_buf, "Landscape-Left");
 		break;
 	case 2:
-		strcat(tilt_buf, "Landscape mode towards right\n");
+		strcat(tilt_buf, "Landscape-Right");
 		break;
 	case 5:
-		strcat(tilt_buf, "Standing vertically in inverted position\n");
+		strcat(tilt_buf, "Portrait-Inverted");
 		break;
 	case 6:
-		strcat(tilt_buf, "Standing vertically in normal position\n");
+		strcat(tilt_buf, "Portrait-Normal");
 		break;
 	}
 }
@@ -231,12 +234,19 @@ ssize_t mma7660_debug_read(struct file *filp, char __user *ubuff,
 		return retcnt;
 
 	memset(tilt_buf, 0, sizeof(tilt_buf));
-	mma7660_get_tilt_buf(tilt_stat, tilt_buf);
+	mma7660_get_tilt_buf(dev, tilt_stat, tilt_buf);
 
-	retcnt = sprintf(buff, " X : %d\n Y : %d\n Z : %d\n\nTilt info :\n%s",
+	retcnt = sprintf(buff,
+			"===========================\n"
+			" X : %3d\n Y : %3d\n Z : %3d\n\nTilt info :\n%s\n"
+			"===========================\n",
 			xyz.xout, xyz.yout, xyz.zout, tilt_buf);
 
-	return simple_read_from_buffer(ubuff, cnt, off, buff, retcnt);
+//	simple_read_from_buffer(ubuff, cnt, off, buff, retcnt);
+	if (copy_to_user(ubuff, buff, retcnt))
+		return -EFAULT;
+
+	return cnt;
 }
 
 int mma7660_debug_open(struct inode *inode, struct file *filp)
