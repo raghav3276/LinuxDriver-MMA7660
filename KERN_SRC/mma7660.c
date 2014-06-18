@@ -195,12 +195,9 @@ void mma7660_poll(struct input_polled_dev *ipdev)
 	/* Report the shake event, for values :
 	 * 0 : No shake detected
 	 * 1 : Shake detected
-	 * -1 : Shake is disabled
 	 */
 	if (dev->shake_enable)
 		input_event(idev, EV_MSC, MSC_GESTURE, (tilt_stat >> 7) & 0x01);
-	else
-		input_event(idev, EV_MSC, MSC_GESTURE, -1);
 
 	input_sync(idev);
 }
