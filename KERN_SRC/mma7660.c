@@ -414,9 +414,6 @@ int mma7660_remove(struct i2c_client *client)
 
 	sysfs_remove_group(&client->dev.kobj, &mma7660_attr_grp);
 
-	/* put the device back to standby mode, just to save power */
-	i2c_smbus_write_byte_data(client, MODE, 0x00);
-
 	debugfs_remove(dev->stat);
 
 	input_unregister_polled_device(dev->ipdev);
