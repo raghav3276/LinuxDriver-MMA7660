@@ -28,6 +28,7 @@ struct mma7660_dev {
 	struct dentry *stat;
 
 	bool shake_enable;
+	bool tap_enable;
 };
 
 struct mma7660_xyz {
@@ -61,10 +62,37 @@ ssize_t shake_enable_store(struct device *d, struct device_attribute *attr,
 	return count;
 }
 
+ssize_t tap_enable_show(struct device *d, struct device_attribute *attr,
+			char *buf)
+{
+	struct i2c_client *client = to_i2c_client(d);
+	struct mma7660_dev *dev = i2c_get_clientdata(client);
+
+	return sprintf(buf, "%d\n", !!dev->tap_enable);
+}
+
+ssize_t tap_enable_store(struct device *d, struct device_attribute *attr,
+			 const char *buf, size_t count)
+{
+	struct i2c_client *client = to_i2c_client(d);
+	struct mma7660_dev *dev = i2c_get_clientdata(client);
+
+	if ('1' == buf[0])
+		dev->tap_enable = true;
+	else if ('0' == buf[0])
+		dev->tap_enable = false;
+	else
+		return -EINVAL;
+
+	return count;
+}
+
 static DEVICE_ATTR_RW(shake_enable);
+static DEVICE_ATTR_RW(tap_enable);
 
 static struct attribute *mma7660_attrs[] = {
 		&dev_attr_shake_enable.attr,
+		&dev_attr_tap_enable.attr,
 		NULL
 };
 
@@ -83,12 +111,14 @@ void mma7660_get_tilt_buf(struct mma7660_dev *dev, u8 tilt_stat, char *tilt_buf)
 		strcpy(tilt_buf, "Shake disabled\n");
 	}
 
-	if (tilt_stat & (1 << 5)) {
-		strcat(tilt_buf, "Tap detected\n");
-		dev_info(&dev->client->dev, "TAP DETECTED\n");
+	if (dev->tap_enable) {
+		if (tilt_stat & (1 << 5))
+			strcat(tilt_buf, "Tap detected\n");
+		else
+			strcat(tilt_buf, "No tap detected\n");
+	} else {
+		strcat(tilt_buf, "Tap disabled\n");
 	}
-	else
-		strcat(tilt_buf, "No tap detected\n");
 
 	strcat(tilt_buf, "Facing : ");
 	switch (tilt_stat & 0x03) {
@@ -203,7 +233,8 @@ void mma7660_poll(struct input_polled_dev *ipdev)
 		input_event(idev, EV_MSC, MSC_GESTURE, (tilt_stat >> 7) & 0x01);
 
 	/* Report tap event */
-	input_report_key(idev, BTN_TOUCH, (tilt_stat >> 5) & 0x01);
+	if (dev->tap_enable)
+		input_report_key(idev, BTN_TOUCH, (tilt_stat >> 5) & 0x01);
 
 	input_sync(idev);
 }
@@ -228,10 +259,10 @@ ssize_t mma7660_debug_read(struct file *filp, char __user *ubuff,
 							size_t cnt, loff_t *off)
 {
 	int retcnt;
-	struct mma7660_xyz xyz;
 	u8 tilt_stat;
-	char buff[256];
-	char tilt_buf[256];
+	char buff[128];
+	char tilt_buf[128];
+	struct mma7660_xyz xyz;
 	struct mma7660_dev *dev = filp->private_data;
 	struct i2c_client *client = dev->client;
 
@@ -260,10 +291,16 @@ ssize_t mma7660_debug_read(struct file *filp, char __user *ubuff,
 
 int mma7660_debug_open(struct inode *inode, struct file *filp)
 {
+	int retval;
 	struct mma7660_dev *dev = filp->private_data = inode->i_private;
 	struct i2c_client *client = dev->client;
 
-	return pm_runtime_get_sync(&client->dev);
+	retval = pm_runtime_get_sync(&client->dev);
+	/* TODO : Returning 1, even on success; don't know why */
+	if (retval < 0)
+		return retval;
+
+	return 0;
 }
 
 int mma7660_debug_close(struct inode *inode, struct file *filp)
@@ -293,19 +330,33 @@ int mma7660_dev_init(struct mma7660_dev *dev)
 	/* Enable shake detection, on all axes */
 	retval = i2c_smbus_write_byte_data(client, INTSU,
 				(1 << 5) | (1 << 6) | (1 << 7));
-	if (retval)
+	if (retval) {
 		dev_err(&client->dev, "Failed to enable shake detection\n");
-	else
-		dev->shake_enable = true;
+		return retval;
+	}
 
-	/* Enable tap detection */
-	retval = i2c_smbus_write_byte_data(client, PD, 0x14);
-	if (retval)
-		dev_err(&client->dev, "Failed to write to PD register\n");
+	/* 120 samples per second, with tap detection enabled */
+	retval = i2c_smbus_write_byte_data(client, SR, 0x00);
+	if (retval) {
+		dev_err(&client->dev, "Failed to write to SR register\n");
+		return retval;
+	}
 
-	retval = i2c_smbus_write_byte_data(client, PDET, 0x86);
-	if (retval)
+	retval = i2c_smbus_write_byte_data(client, PDET, 0x00);
+	if (retval) {
 		dev_err(&client->dev, "Failed to enable tap detection\n");
+		return retval;
+	}
+
+	/* Optimal vale for tap debouncing filter */
+	retval = i2c_smbus_write_byte_data(client, PD, 0x1f);
+	if (retval) {
+		dev_err(&client->dev, "Failed to write to PD register\n");
+		return retval;
+	}
+
+	dev->shake_enable = true;
+	dev->tap_enable = true;
 
 	return 0;
 }
