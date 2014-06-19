@@ -8,24 +8,21 @@
 /* Delay in ms to read the next value */
 #define DELAY_MILLIS 50
 
-/* Receives 6 events from the driver : ABS_X, ABS_Y, ABS_Z
- * ABS_MT_ORIENTATION & MSC_GESTURE
+/* Receives 7 events from the driver : ABS_X, ABS_Y, ABS_Z
+ * ABS_MT_ORIENTATION, MSC_GESTURE, BTN_TOUCH & EV_SYN
  */
-#define NUM_EVENTS 6
+#define NUM_EVENTS 7
+
+void get_tap_buf(__s8 val, char *tilt_buf)
+{
+	if (val)
+		strcat(tilt_buf, "TAP");
+}
 
 void get_shake_buf(__s8 val, char *tilt_buf)
 {
-	switch (val) {
-	case -1:
-//		strcat(tilt_buf, "Shake detection disabled");
-		break;
-	case 0:
-//		strcat(tilt_buf, "No shake detected");
-		break;
-	case 1:
-		strcat(tilt_buf, "Shake");
-		break;
-	}
+	if (val)
+		strcat(tilt_buf, "SHAKE\t");
 }
 
 void get_tilt_buf(__s8 tilt_stat, char *tilt_buf)
@@ -104,9 +101,14 @@ int main(int argc, char *argv[])
 			else if (accel_event[i].type == EV_MSC &&
 						accel_event[i].code == MSC_GESTURE)
 				get_shake_buf(accel_event[i].value, tilt_buf);
+
+			else if (accel_event[i].type = EV_KEY &&
+						accel_event[i].code == BTN_TOUCH)
+				get_tap_buf(accel_event[i].value, tilt_buf);
 		}
 
-		printf("X : %3d\t\tY : %3d\t\t Z : %3d\t%s\n", xout, yout, zout, tilt_buf);
+		printf("X : %3d\t\tY : %3d\t\t Z : %3d\t%s\n",
+				xout, yout, zout, tilt_buf);
 		usleep(DELAY_MILLIS * 1000);
 	}
 
