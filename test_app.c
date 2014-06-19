@@ -103,7 +103,7 @@ int main(int argc, char *argv[])
 				get_shake_buf(accel_event[i].value, tilt_buf);
 
 			else if (accel_event[i].type = EV_KEY &&
-						accel_event[i].code == BTN_TOUCH)
+						accel_event[i].code == BTN_SELECT)
 				get_tap_buf(accel_event[i].value, tilt_buf);
 		}
 

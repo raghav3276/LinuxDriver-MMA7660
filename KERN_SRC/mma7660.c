@@ -234,7 +234,7 @@ void mma7660_poll(struct input_polled_dev *ipdev)
 
 	/* Report tap event */
 	if (dev->tap_enable)
-		input_report_key(idev, BTN_TOUCH, (tilt_stat >> 5) & 0x01);
+		input_report_key(idev, BTN_SELECT, (tilt_stat >> 5) & 0x01);
 
 	input_sync(idev);
 }
@@ -296,7 +296,6 @@ int mma7660_debug_open(struct inode *inode, struct file *filp)
 	struct i2c_client *client = dev->client;
 
 	retval = pm_runtime_get_sync(&client->dev);
-	/* TODO : Returning 1, even on success; don't know why */
 	if (retval < 0)
 		return retval;
 
@@ -388,7 +387,7 @@ void mma7660_input_init(struct input_polled_dev *ipdev)
 
 	/* Button event : Tap detection */
 	set_bit(EV_KEY, idev->evbit);
-	set_bit(BTN_TOUCH, idev->keybit);
+	set_bit(BTN_SELECT, idev->keybit);
 
 	input_alloc_absinfo(idev);
 }
