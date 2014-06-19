@@ -83,6 +83,13 @@ void mma7660_get_tilt_buf(struct mma7660_dev *dev, u8 tilt_stat, char *tilt_buf)
 		strcpy(tilt_buf, "Shake disabled\n");
 	}
 
+	if (tilt_stat & (1 << 5)) {
+		strcat(tilt_buf, "Tap detected\n");
+		dev_info(&dev->client->dev, "TAP DETECTED\n");
+	}
+	else
+		strcat(tilt_buf, "No tap detected\n");
+
 	strcat(tilt_buf, "Facing : ");
 	switch (tilt_stat & 0x03) {
 	case 0:
@@ -195,6 +202,9 @@ void mma7660_poll(struct input_polled_dev *ipdev)
 	if (dev->shake_enable)
 		input_event(idev, EV_MSC, MSC_GESTURE, (tilt_stat >> 7) & 0x01);
 
+	/* Report tap event */
+	input_report_key(idev, BTN_TOUCH, (tilt_stat >> 5) & 0x01);
+
 	input_sync(idev);
 }
 
@@ -288,6 +298,15 @@ int mma7660_dev_init(struct mma7660_dev *dev)
 	else
 		dev->shake_enable = true;
 
+	/* Enable tap detection */
+	retval = i2c_smbus_write_byte_data(client, PD, 0x14);
+	if (retval)
+		dev_err(&client->dev, "Failed to write to PD register\n");
+
+	retval = i2c_smbus_write_byte_data(client, PDET, 0x86);
+	if (retval)
+		dev_err(&client->dev, "Failed to enable tap detection\n");
+
 	return 0;
 }
 
@@ -315,6 +334,10 @@ void mma7660_input_init(struct input_polled_dev *ipdev)
 	/* Misc event : Shake gesture */
 	set_bit(EV_MSC, idev->evbit);
 	set_bit(MSC_GESTURE	, idev->mscbit);
+
+	/* Button event : Tap detection */
+	set_bit(EV_KEY, idev->evbit);
+	set_bit(BTN_TOUCH, idev->keybit);
 
 	input_alloc_absinfo(idev);
 }
