@@ -25,6 +25,7 @@ LinuxDriver-MMA7660
     to it disables to output shake events.
   * A logic to detect taps on the hardware is also added, and a sysfs attribute is exported for the same, just to enable/disable it. 
     The enable/disable logic follows same as the above point.
+  * An attribute to configure the update rate (samples/sec) of the device is exported.
   * A debugfs file corresponding to each device attached to the bus is created under /sys/kernel/debug/mma7660/stat_<i2c_addr>.
     A 'cat' on the file (read-operation) produces continuous output of the data read from the device.
   * The driver has also opted for power-optimisations using Linux's runtime power optimisation framework. The driver pushes the device into
