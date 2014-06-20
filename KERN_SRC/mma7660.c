@@ -21,6 +21,9 @@
 
 #define MMA7660_POLL_INTERVAL 10
 
+#define SHAKE_ENABLE	1
+#define TAP_ENABLE	2
+
 struct mma7660_dev {
 	struct i2c_client *client;
 	struct input_polled_dev *ipdev;
@@ -38,58 +41,74 @@ struct mma7660_xyz {
 	s8 zout;
 };
 
-ssize_t shake_enable_show(struct kobject *kobj, struct kobj_attribute *attr,
-			char *buf)
+struct mma7660_dev *kobj_to_mma7660_dev(struct kobject *kobj)
 {
 	struct device *i2cdev = kobj_to_dev(kobj->parent);
 	struct i2c_client *client = to_i2c_client(i2cdev);
-	struct mma7660_dev *dev = i2c_get_clientdata(client);
 
-	return sprintf(buf, "%d\n", !!dev->shake_enable);
+	return i2c_get_clientdata(client);
+}
+
+ssize_t mma7660_show(struct kobject *kobj, char *buf, u8 which)
+{
+	u8 flag;
+	struct mma7660_dev *dev = kobj_to_mma7660_dev(kobj);
+
+	switch (which) {
+	case SHAKE_ENABLE:
+		flag = !!dev->shake_enable; break;
+	case TAP_ENABLE:
+		flag = !!dev->tap_enable; break;
+	default:
+		return -EINVAL;
+	}
+
+	return sprintf(buf, "%d\n", flag);
+}
+
+ssize_t mma7660_store(struct kobject *kobj, const char *buf, size_t count,
+			u8 which)
+{
+	int val;
+	int retval;
+	struct mma7660_dev *dev = kobj_to_mma7660_dev(kobj);
+
+	retval = sscanf(buf, "%d", &val);
+	if (retval != 1)
+		return -EINVAL;
+
+	switch (which) {
+	case SHAKE_ENABLE:
+		dev->shake_enable = !!val; break;
+	case TAP_ENABLE:
+		dev->tap_enable = !!val; break;
+	}
+
+	return count;
+}
+
+ssize_t shake_enable_show(struct kobject *kobj, struct kobj_attribute *attr,
+			char *buf)
+{
+	return mma7660_show(kobj, buf, SHAKE_ENABLE);
 }
 
 ssize_t shake_enable_store(struct kobject *kobj, struct kobj_attribute *attr,
 			 const char *buf, size_t count)
 {
-	struct device *i2cdev = kobj_to_dev(kobj->parent);
-	struct i2c_client *client = to_i2c_client(i2cdev);
-	struct mma7660_dev *dev = i2c_get_clientdata(client);
-
-	if ('1' == buf[0])
-		dev->shake_enable = true;
-	else if ('0' == buf[0])
-		dev->shake_enable = false;
-	else
-		return -EINVAL;
-
-	return count;
+	return mma7660_store(kobj, buf, count, SHAKE_ENABLE);
 }
 
 ssize_t tap_enable_show(struct kobject *kobj, struct kobj_attribute *attr,
 			char *buf)
 {
-	struct device *i2cdev = kobj_to_dev(kobj->parent);
-	struct i2c_client *client = to_i2c_client(i2cdev);
-	struct mma7660_dev *dev = i2c_get_clientdata(client);
-
-	return sprintf(buf, "%d\n", !!dev->tap_enable);
+	return mma7660_show(kobj, buf, TAP_ENABLE);
 }
 
 ssize_t tap_enable_store(struct kobject *kobj, struct kobj_attribute *attr,
 			 const char *buf, size_t count)
 {
-	struct device *i2cdev = kobj_to_dev(kobj->parent);
-	struct i2c_client *client = to_i2c_client(i2cdev);
-	struct mma7660_dev *dev = i2c_get_clientdata(client);
-
-	if ('1' == buf[0])
-		dev->tap_enable = true;
-	else if ('0' == buf[0])
-		dev->tap_enable = false;
-	else
-		return -EINVAL;
-
-	return count;
+	return mma7660_store(kobj, buf, count, TAP_ENABLE);
 }
 
 static struct kobj_attribute shake_attr = __ATTR_RW(shake_enable);
