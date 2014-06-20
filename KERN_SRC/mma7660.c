@@ -26,6 +26,7 @@ struct mma7660_dev {
 	struct input_polled_dev *ipdev;
 
 	struct dentry *stat;
+	struct kobject *kobj_conf_dir;
 
 	bool shake_enable;
 	bool tap_enable;
@@ -37,19 +38,21 @@ struct mma7660_xyz {
 	s8 zout;
 };
 
-ssize_t shake_enable_show(struct device *d, struct device_attribute *attr,
+ssize_t shake_enable_show(struct kobject *kobj, struct kobj_attribute *attr,
 			char *buf)
 {
-	struct i2c_client *client = to_i2c_client(d);
+	struct device *i2cdev = kobj_to_dev(kobj->parent);
+	struct i2c_client *client = to_i2c_client(i2cdev);
 	struct mma7660_dev *dev = i2c_get_clientdata(client);
 
 	return sprintf(buf, "%d\n", !!dev->shake_enable);
 }
 
-ssize_t shake_enable_store(struct device *d, struct device_attribute *attr,
+ssize_t shake_enable_store(struct kobject *kobj, struct kobj_attribute *attr,
 			 const char *buf, size_t count)
 {
-	struct i2c_client *client = to_i2c_client(d);
+	struct device *i2cdev = kobj_to_dev(kobj->parent);
+	struct i2c_client *client = to_i2c_client(i2cdev);
 	struct mma7660_dev *dev = i2c_get_clientdata(client);
 
 	if ('1' == buf[0])
@@ -62,19 +65,21 @@ ssize_t shake_enable_store(struct device *d, struct device_attribute *attr,
 	return count;
 }
 
-ssize_t tap_enable_show(struct device *d, struct device_attribute *attr,
+ssize_t tap_enable_show(struct kobject *kobj, struct kobj_attribute *attr,
 			char *buf)
 {
-	struct i2c_client *client = to_i2c_client(d);
+	struct device *i2cdev = kobj_to_dev(kobj->parent);
+	struct i2c_client *client = to_i2c_client(i2cdev);
 	struct mma7660_dev *dev = i2c_get_clientdata(client);
 
 	return sprintf(buf, "%d\n", !!dev->tap_enable);
 }
 
-ssize_t tap_enable_store(struct device *d, struct device_attribute *attr,
+ssize_t tap_enable_store(struct kobject *kobj, struct kobj_attribute *attr,
 			 const char *buf, size_t count)
 {
-	struct i2c_client *client = to_i2c_client(d);
+	struct device *i2cdev = kobj_to_dev(kobj->parent);
+	struct i2c_client *client = to_i2c_client(i2cdev);
 	struct mma7660_dev *dev = i2c_get_clientdata(client);
 
 	if ('1' == buf[0])
@@ -87,12 +92,12 @@ ssize_t tap_enable_store(struct device *d, struct device_attribute *attr,
 	return count;
 }
 
-static DEVICE_ATTR_RW(shake_enable);
-static DEVICE_ATTR_RW(tap_enable);
+static struct kobj_attribute shake_attr = __ATTR_RW(shake_enable);
+static struct kobj_attribute tap_attr = __ATTR_RW(tap_enable);
 
 static struct attribute *mma7660_attrs[] = {
-		&dev_attr_shake_enable.attr,
-		&dev_attr_tap_enable.attr,
+		&shake_attr.attr,
+		&tap_attr.attr,
 		NULL
 };
 
@@ -438,7 +443,9 @@ int mma7660_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		goto input_reg_fail;
 	}
 
-	retval = sysfs_create_group(&client->dev.kobj, &mma7660_attr_grp);
+	dev->kobj_conf_dir = kobject_create_and_add("mma7660_conf",
+				&client->dev.kobj);
+	retval = sysfs_create_group(dev->kobj_conf_dir, &mma7660_attr_grp);
 	if (retval) {
 		dev_err(&client->dev, "Failed to create sysfs attribute group\n");
 		goto sysfs_grp_fail;
@@ -466,7 +473,7 @@ int mma7660_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	return 0;
 
 dev_init_fail:
-	sysfs_remove_group(&client->dev.kobj, &mma7660_attr_grp);
+	sysfs_remove_group(dev->kobj_conf_dir, &mma7660_attr_grp);
 sysfs_grp_fail:
 	input_unregister_polled_device(dev->ipdev);
 input_reg_fail:
@@ -485,7 +492,8 @@ int mma7660_remove(struct i2c_client *client)
 
 	pm_runtime_disable(&client->dev);
 
-	sysfs_remove_group(&client->dev.kobj, &mma7660_attr_grp);
+	sysfs_remove_group(dev->kobj_conf_dir, &mma7660_attr_grp);
+	kobject_put(dev->kobj_conf_dir);
 
 	debugfs_remove(dev->stat);
 
