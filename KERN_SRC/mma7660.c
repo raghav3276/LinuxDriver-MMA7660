@@ -23,6 +23,7 @@
 
 #define SHAKE_ENABLE	1
 #define TAP_ENABLE	2
+#define SAMPLES_PER_SEC	3
 
 struct mma7660_dev {
 	struct i2c_client *client;
@@ -33,6 +34,7 @@ struct mma7660_dev {
 
 	bool shake_enable;
 	bool tap_enable;
+	u8 samples_per_sec;
 };
 
 struct mma7660_xyz {
@@ -59,6 +61,9 @@ ssize_t mma7660_show(struct kobject *kobj, char *buf, u8 which)
 		flag = !!dev->shake_enable; break;
 	case TAP_ENABLE:
 		flag = !!dev->tap_enable; break;
+	case SAMPLES_PER_SEC:
+		flag = dev->samples_per_sec;
+		break;
 	default:
 		return -EINVAL;
 	}
@@ -69,6 +74,7 @@ ssize_t mma7660_show(struct kobject *kobj, char *buf, u8 which)
 ssize_t mma7660_store(struct kobject *kobj, const char *buf, size_t count,
 			u8 which)
 {
+	u8 sr_reg;
 	int val;
 	int retval;
 	struct mma7660_dev *dev = kobj_to_mma7660_dev(kobj);
@@ -80,8 +86,47 @@ ssize_t mma7660_store(struct kobject *kobj, const char *buf, size_t count,
 	switch (which) {
 	case SHAKE_ENABLE:
 		dev->shake_enable = !!val; break;
+
 	case TAP_ENABLE:
+		if (val && 120 != dev->samples_per_sec) {
+			dev_info(&dev->client->dev,
+					"Tap detection can only be enabled for 120 samples/sec\n");
+			return -EINVAL;
+		}
 		dev->tap_enable = !!val; break;
+
+	case SAMPLES_PER_SEC:
+		switch(val) {
+		case 120:
+			sr_reg = 0x00; break;
+		case 64:
+			sr_reg = 0x01; break;
+		case 32:
+			sr_reg = 0x02; break;
+		case 16:
+			sr_reg = 0x03; break;
+		case 8:
+			sr_reg = 0x04; break;
+		case 4:
+			sr_reg = 0x05; break;
+		case 2:
+			sr_reg = 0x06; break;
+		case 1:
+			sr_reg = 0x07; break;
+		default:
+			return -EINVAL;
+		}
+
+		retval = i2c_smbus_write_byte_data(dev->client, SR, sr_reg);
+		if (retval) {
+			dev_err(&dev->client->dev, "Failed to configure samples/sec\n");
+			return retval;
+		}
+
+		dev->samples_per_sec = val;
+		if (120 != val)
+		/* No tap detection for samples other than 120 samples/sec */
+			dev->tap_enable = false;
 	}
 
 	return count;
@@ -111,12 +156,26 @@ ssize_t tap_enable_store(struct kobject *kobj, struct kobj_attribute *attr,
 	return mma7660_store(kobj, buf, count, TAP_ENABLE);
 }
 
+ssize_t samples_ps_show(struct kobject *kobj, struct kobj_attribute *attr,
+			char *buf)
+{
+	return mma7660_show(kobj, buf, SAMPLES_PER_SEC);
+}
+
+ssize_t samples_ps_store(struct kobject *kobj, struct kobj_attribute *attr,
+			 const char *buf, size_t count)
+{
+	return mma7660_store(kobj, buf, count, SAMPLES_PER_SEC);
+}
+
 static struct kobj_attribute shake_attr = __ATTR_RW(shake_enable);
 static struct kobj_attribute tap_attr = __ATTR_RW(tap_enable);
+static struct kobj_attribute samples_ps_attr = __ATTR_RW(samples_ps);
 
 static struct attribute *mma7660_attrs[] = {
 		&shake_attr.attr,
 		&tap_attr.attr,
+		&samples_ps_attr.attr,
 		NULL
 };
 
@@ -378,6 +437,7 @@ int mma7660_dev_init(struct mma7660_dev *dev)
 		return retval;
 	}
 
+	dev->samples_per_sec = 120;
 	dev->shake_enable = true;
 	dev->tap_enable = true;
 
