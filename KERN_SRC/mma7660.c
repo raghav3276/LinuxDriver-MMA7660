@@ -1,4 +1,3 @@
-
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/i2c.h>
@@ -8,16 +7,16 @@
 #include <linux/pm_runtime.h>
 
 #define XOUT	0x00
-#define	 YOUT	0X01
+#define	YOUT	0X01
 #define ZOUT	0x02
 #define TILT	0x03
 #define SRST	0x04
 #define SPCNT	0x05
 #define INTSU	0X06
 #define MODE	0X07
-#define SR		0X08
+#define SR	0X08
 #define PDET	0X09
-#define PD		0X0A
+#define PD	0X0A
 
 #define MMA7660_POLL_INTERVAL 10
 
@@ -94,7 +93,7 @@ ssize_t mma7660_store(struct device *i2c_dev, const char *buf, size_t count,
 		dev->tap_enable = !!val; break;
 
 	case SAMPLES_PER_SEC:
-		switch(val) {
+		switch (val) {
 		case 120:
 			sr_reg = 0x00; break;
 		case 64:
@@ -122,8 +121,9 @@ ssize_t mma7660_store(struct device *i2c_dev, const char *buf, size_t count,
 		}
 
 		dev->samples_per_sec = val;
-		if (120 != val)
+
 		/* No tap detection for samples other than 120 samples/sec */
+		if (val != 120)
 			dev->tap_enable = false;
 	}
 
@@ -600,7 +600,7 @@ static UNIVERSAL_DEV_PM_OPS(mma7660_pm, mma7660_suspend, mma7660_resume, NULL);
 static struct i2c_driver mma7660_driver = {
 		.driver		= {
 				.name	= "mma7660",
-				.pm		= &mma7660_pm
+				.pm	= &mma7660_pm
 		},
 		.probe		= mma7660_probe,
 		.remove		= mma7660_remove,
@@ -644,6 +644,3 @@ module_exit(mma7660_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("A Raghavendra Rao <arrao@cdac.in>");
-
-
-
