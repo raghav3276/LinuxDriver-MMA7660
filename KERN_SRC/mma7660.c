@@ -30,7 +30,6 @@ struct mma7660_dev {
 	struct input_polled_dev *ipdev;
 
 	struct dentry *stat;
-	struct kobject *kobj_conf_dir;
 
 	bool shake_enable;
 	bool tap_enable;
@@ -43,18 +42,17 @@ struct mma7660_xyz {
 	s8 zout;
 };
 
-struct mma7660_dev *kobj_to_mma7660_dev(struct kobject *kobj)
+struct mma7660_dev *i2c_dev_to_mma7660_dev(struct device *i2c_dev)
 {
-	struct device *i2cdev = kobj_to_dev(kobj->parent);
-	struct i2c_client *client = to_i2c_client(i2cdev);
+	struct i2c_client *client = to_i2c_client(i2c_dev);
 
 	return i2c_get_clientdata(client);
 }
 
-ssize_t mma7660_show(struct kobject *kobj, char *buf, u8 which)
+ssize_t mma7660_show(struct device *i2c_dev, char *buf, u8 which)
 {
 	u8 flag;
-	struct mma7660_dev *dev = kobj_to_mma7660_dev(kobj);
+	struct mma7660_dev *dev = i2c_dev_to_mma7660_dev(i2c_dev);
 
 	switch (which) {
 	case SHAKE_ENABLE:
@@ -71,13 +69,13 @@ ssize_t mma7660_show(struct kobject *kobj, char *buf, u8 which)
 	return sprintf(buf, "%d\n", flag);
 }
 
-ssize_t mma7660_store(struct kobject *kobj, const char *buf, size_t count,
+ssize_t mma7660_store(struct device *i2c_dev, const char *buf, size_t count,
 			u8 which)
 {
 	u8 sr_reg;
 	int val;
 	int retval;
-	struct mma7660_dev *dev = kobj_to_mma7660_dev(kobj);
+	struct mma7660_dev *dev = i2c_dev_to_mma7660_dev(i2c_dev);
 
 	retval = sscanf(buf, "%d", &val);
 	if (retval != 1)
@@ -132,55 +130,56 @@ ssize_t mma7660_store(struct kobject *kobj, const char *buf, size_t count,
 	return count;
 }
 
-ssize_t shake_enable_show(struct kobject *kobj, struct kobj_attribute *attr,
-			char *buf)
+ssize_t shake_enable_show(struct device *dev, struct device_attribute *attr,
+		char *buf)
 {
-	return mma7660_show(kobj, buf, SHAKE_ENABLE);
+	return mma7660_show(dev, buf, SHAKE_ENABLE);
 }
 
-ssize_t shake_enable_store(struct kobject *kobj, struct kobj_attribute *attr,
-			 const char *buf, size_t count)
+ssize_t shake_enable_store(struct device *dev, struct device_attribute *attr,
+		 const char *buf, size_t count)
 {
-	return mma7660_store(kobj, buf, count, SHAKE_ENABLE);
+	return mma7660_store(dev, buf, count, SHAKE_ENABLE);
 }
 
-ssize_t tap_enable_show(struct kobject *kobj, struct kobj_attribute *attr,
-			char *buf)
+ssize_t tap_enable_show(struct device *dev, struct device_attribute *attr,
+		char *buf)
 {
-	return mma7660_show(kobj, buf, TAP_ENABLE);
+	return mma7660_show(dev, buf, TAP_ENABLE);
 }
 
-ssize_t tap_enable_store(struct kobject *kobj, struct kobj_attribute *attr,
-			 const char *buf, size_t count)
+ssize_t tap_enable_store(struct device *dev, struct device_attribute *attr,
+		 const char *buf, size_t count)
 {
-	return mma7660_store(kobj, buf, count, TAP_ENABLE);
+	return mma7660_store(dev, buf, count, TAP_ENABLE);
 }
 
-ssize_t samples_ps_show(struct kobject *kobj, struct kobj_attribute *attr,
-			char *buf)
+ssize_t samples_ps_show(struct device *dev, struct device_attribute *attr,
+		char *buf)
 {
-	return mma7660_show(kobj, buf, SAMPLES_PER_SEC);
+	return mma7660_show(dev, buf, SAMPLES_PER_SEC);
 }
 
-ssize_t samples_ps_store(struct kobject *kobj, struct kobj_attribute *attr,
-			 const char *buf, size_t count)
+ssize_t samples_ps_store(struct device *dev, struct device_attribute *attr,
+		 const char *buf, size_t count)
 {
-	return mma7660_store(kobj, buf, count, SAMPLES_PER_SEC);
+	return mma7660_store(dev, buf, count, SAMPLES_PER_SEC);
 }
 
-static struct kobj_attribute shake_attr = __ATTR_RW(shake_enable);
-static struct kobj_attribute tap_attr = __ATTR_RW(tap_enable);
-static struct kobj_attribute samples_ps_attr = __ATTR_RW(samples_ps);
+static DEVICE_ATTR_RW(shake_enable);
+static DEVICE_ATTR_RW(tap_enable);
+static DEVICE_ATTR_RW(samples_ps);
 
 static struct attribute *mma7660_attrs[] = {
-		&shake_attr.attr,
-		&tap_attr.attr,
-		&samples_ps_attr.attr,
+		&dev_attr_shake_enable.attr,
+		&dev_attr_tap_enable.attr,
+		&dev_attr_samples_ps.attr,
 		NULL
 };
 
 static const struct attribute_group mma7660_attr_grp = {
-		.attrs = mma7660_attrs
+		.name	= "mma7660_conf",
+		.attrs	= mma7660_attrs
 };
 
 void mma7660_get_tilt_buf(struct mma7660_dev *dev, u8 tilt_stat, char *tilt_buf)
@@ -505,6 +504,12 @@ int mma7660_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	}
 	dev->stat = stat;
 
+	retval = sysfs_create_group(&client->dev.kobj, &mma7660_attr_grp);
+	if (retval) {
+		dev_err(&client->dev, "Failed to create sysfs attribute group\n");
+		goto sysfs_grp_fail;
+	}
+
 	dev->ipdev = input_allocate_polled_device();
 	if (!dev->ipdev) {
 		dev_err(&client->dev, "Failed to allocate input device\n");
@@ -520,14 +525,6 @@ int mma7660_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	if (retval) {
 		dev_err(&client->dev, "Failed to register with the input subsystem\n");
 		goto input_reg_fail;
-	}
-
-	dev->kobj_conf_dir = kobject_create_and_add("mma7660_conf",
-				&client->dev.kobj);
-	retval = sysfs_create_group(dev->kobj_conf_dir, &mma7660_attr_grp);
-	if (retval) {
-		dev_err(&client->dev, "Failed to create sysfs attribute group\n");
-		goto sysfs_grp_fail;
 	}
 
 	retval = mma7660_dev_init(dev);
@@ -552,12 +549,12 @@ int mma7660_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	return 0;
 
 dev_init_fail:
-	sysfs_remove_group(dev->kobj_conf_dir, &mma7660_attr_grp);
-sysfs_grp_fail:
 	input_unregister_polled_device(dev->ipdev);
 input_reg_fail:
 	input_free_polled_device(dev->ipdev);
 input_alloc_fail:
+	sysfs_remove_group(&client->dev.kobj, &mma7660_attr_grp);
+sysfs_grp_fail:
 	debugfs_remove(stat);
 xyz_fail:
 	return retval;
@@ -571,13 +568,12 @@ int mma7660_remove(struct i2c_client *client)
 
 	pm_runtime_disable(&client->dev);
 
-	sysfs_remove_group(dev->kobj_conf_dir, &mma7660_attr_grp);
-	kobject_put(dev->kobj_conf_dir);
-
-	debugfs_remove(dev->stat);
-
 	input_unregister_polled_device(dev->ipdev);
 	input_free_polled_device(dev->ipdev);
+
+	sysfs_remove_group(&client->dev.kobj, &mma7660_attr_grp);
+
+	debugfs_remove(dev->stat);
 
 	dev_info(&client->dev, "MMA7660 device removed");
 	return 0;
