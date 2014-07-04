@@ -494,13 +494,19 @@ int mma7660_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	i2c_set_clientdata(client, dev);
 	dev->client = client;
 
+	retval = mma7660_dev_init(dev);
+	if (retval) {
+		dev_err(&client->dev, "Failed to initialise MMA7660");
+		goto dev_init_fail;
+	}
+
 	sprintf(fname, "stat_%x", client->addr);
 	stat = debugfs_create_file(fname, S_IRUGO, mma7660_dir,
 					dev, &mma7660_debug_fops);
 	if (!stat) {
 		dev_err(&client->dev, "Failed to create xyz debug file");
 		retval = PTR_ERR(stat);
-		goto xyz_fail;
+		goto debugfs_fail;
 	}
 	dev->stat = stat;
 
@@ -520,12 +526,6 @@ int mma7660_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	dev->ipdev->private = dev;
 	dev->ipdev->input->dev.parent = &client->dev;
 	mma7660_input_init(dev->ipdev);
-
-	retval = mma7660_dev_init(dev);
-	if (retval) {
-		dev_err(&client->dev, "Failed to initialise MMA7660");
-		goto dev_init_fail;
-	}
 
 	retval = input_register_polled_device(dev->ipdev);
 	if (retval) {
@@ -549,13 +549,14 @@ int mma7660_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	return 0;
 
 input_reg_fail:
-dev_init_fail:
 	input_free_polled_device(dev->ipdev);
 input_alloc_fail:
 	sysfs_remove_group(&client->dev.kobj, &mma7660_attr_grp);
 sysfs_grp_fail:
 	debugfs_remove(stat);
-xyz_fail:
+debugfs_fail:
+dev_init_fail:
+	i2c_smbus_write_byte_data(client, MODE, 0x00);
 	return retval;
 }
 
