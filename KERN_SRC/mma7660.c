@@ -521,16 +521,16 @@ int mma7660_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	dev->ipdev->input->dev.parent = &client->dev;
 	mma7660_input_init(dev->ipdev);
 
-	retval = input_register_polled_device(dev->ipdev);
-	if (retval) {
-		dev_err(&client->dev, "Failed to register with the input subsystem\n");
-		goto input_reg_fail;
-	}
-
 	retval = mma7660_dev_init(dev);
 	if (retval) {
 		dev_err(&client->dev, "Failed to initialise MMA7660");
 		goto dev_init_fail;
+	}
+
+	retval = input_register_polled_device(dev->ipdev);
+	if (retval) {
+		dev_err(&client->dev, "Failed to register with the input subsystem\n");
+		goto input_reg_fail;
 	}
 
 	pm_runtime_set_active(&client->dev);
@@ -548,9 +548,8 @@ int mma7660_probe(struct i2c_client *client, const struct i2c_device_id *id)
 
 	return 0;
 
-dev_init_fail:
-	input_unregister_polled_device(dev->ipdev);
 input_reg_fail:
+dev_init_fail:
 	input_free_polled_device(dev->ipdev);
 input_alloc_fail:
 	sysfs_remove_group(&client->dev.kobj, &mma7660_attr_grp);
