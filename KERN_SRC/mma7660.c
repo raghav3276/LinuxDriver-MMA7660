@@ -18,6 +18,9 @@
 #define PDET	0X09
 #define PD	0X0A
 
+#define MMA7660_ABS_MIN_VAL -32
+#define MMA7660_ABS_MAX_VAL 31
+
 #define MMA7660_POLL_INTERVAL 10
 
 #define SHAKE_ENABLE	1
@@ -456,10 +459,12 @@ void mma7660_input_init(struct input_polled_dev *ipdev)
 	idev->name = "MMA7660";
 
 	set_bit(EV_ABS, idev->evbit);
-
-	set_bit(ABS_X, idev->absbit);
-	set_bit(ABS_Y, idev->absbit);
-	set_bit(ABS_Z, idev->absbit);
+	input_set_abs_params(idev, ABS_X,
+			MMA7660_ABS_MIN_VAL, MMA7660_ABS_MAX_VAL, 0, 0);
+	input_set_abs_params(idev, ABS_Y,
+			MMA7660_ABS_MIN_VAL, MMA7660_ABS_MAX_VAL, 0, 0);
+	input_set_abs_params(idev, ABS_Z,
+			MMA7660_ABS_MIN_VAL, MMA7660_ABS_MAX_VAL, 0, 0);
 
 	/* Orientation event */
 	set_bit(ABS_MT_ORIENTATION, idev->absbit);
@@ -471,8 +476,6 @@ void mma7660_input_init(struct input_polled_dev *ipdev)
 	/* Button event : Tap detection */
 	set_bit(EV_KEY, idev->evbit);
 	set_bit(BTN_SELECT, idev->keybit);
-
-	input_alloc_absinfo(idev);
 }
 
 static struct dentry *mma7660_dir;
