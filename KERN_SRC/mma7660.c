@@ -44,14 +44,14 @@ struct mma7660_xyz {
 	s8 zout;
 };
 
-struct mma7660_dev *i2c_dev_to_mma7660_dev(struct device *i2c_dev)
+static struct mma7660_dev *i2c_dev_to_mma7660_dev(struct device *i2c_dev)
 {
 	struct i2c_client *client = to_i2c_client(i2c_dev);
 
 	return i2c_get_clientdata(client);
 }
 
-ssize_t mma7660_show(struct device *i2c_dev, char *buf, u8 which)
+static ssize_t mma7660_show(struct device *i2c_dev, char *buf, u8 which)
 {
 	u8 flag;
 	struct mma7660_dev *dev = i2c_dev_to_mma7660_dev(i2c_dev);
@@ -71,7 +71,7 @@ ssize_t mma7660_show(struct device *i2c_dev, char *buf, u8 which)
 	return sprintf(buf, "%d\n", flag);
 }
 
-ssize_t mma7660_store(struct device *i2c_dev, const char *buf, size_t count,
+static ssize_t mma7660_store(struct device *i2c_dev, const char *buf, size_t count,
 			u8 which)
 {
 	u8 sr_reg;
@@ -133,37 +133,37 @@ ssize_t mma7660_store(struct device *i2c_dev, const char *buf, size_t count,
 	return count;
 }
 
-ssize_t shake_enable_show(struct device *dev, struct device_attribute *attr,
+static ssize_t shake_enable_show(struct device *dev, struct device_attribute *attr,
 		char *buf)
 {
 	return mma7660_show(dev, buf, SHAKE_ENABLE);
 }
 
-ssize_t shake_enable_store(struct device *dev, struct device_attribute *attr,
+static ssize_t shake_enable_store(struct device *dev, struct device_attribute *attr,
 		 const char *buf, size_t count)
 {
 	return mma7660_store(dev, buf, count, SHAKE_ENABLE);
 }
 
-ssize_t tap_enable_show(struct device *dev, struct device_attribute *attr,
+static ssize_t tap_enable_show(struct device *dev, struct device_attribute *attr,
 		char *buf)
 {
 	return mma7660_show(dev, buf, TAP_ENABLE);
 }
 
-ssize_t tap_enable_store(struct device *dev, struct device_attribute *attr,
+static ssize_t tap_enable_store(struct device *dev, struct device_attribute *attr,
 		 const char *buf, size_t count)
 {
 	return mma7660_store(dev, buf, count, TAP_ENABLE);
 }
 
-ssize_t samples_ps_show(struct device *dev, struct device_attribute *attr,
+static ssize_t samples_ps_show(struct device *dev, struct device_attribute *attr,
 		char *buf)
 {
 	return mma7660_show(dev, buf, SAMPLES_PER_SEC);
 }
 
-ssize_t samples_ps_store(struct device *dev, struct device_attribute *attr,
+static ssize_t samples_ps_store(struct device *dev, struct device_attribute *attr,
 		 const char *buf, size_t count)
 {
 	return mma7660_store(dev, buf, count, SAMPLES_PER_SEC);
@@ -185,7 +185,7 @@ static const struct attribute_group mma7660_attr_grp = {
 		.attrs	= mma7660_attrs
 };
 
-void mma7660_get_tilt_buf(struct mma7660_dev *dev, u8 tilt_stat, char *tilt_buf)
+static void mma7660_get_tilt_buf(struct mma7660_dev *dev, u8 tilt_stat, char *tilt_buf)
 {
 	if (dev->shake_enable) {
 		if (tilt_stat & (1 << 7))
@@ -237,7 +237,7 @@ void mma7660_get_tilt_buf(struct mma7660_dev *dev, u8 tilt_stat, char *tilt_buf)
 	}
 }
 
-int mma7660_get_xyz(struct i2c_client *client, struct mma7660_xyz *xyz)
+static int mma7660_get_xyz(struct i2c_client *client, struct mma7660_xyz *xyz)
 {
 	do {
 		xyz->xout = i2c_smbus_read_byte_data(client, XOUT);
@@ -275,7 +275,7 @@ int mma7660_get_xyz(struct i2c_client *client, struct mma7660_xyz *xyz)
 	return 0;
 }
 
-int mma7660_get_tilt(struct i2c_client *client, u8 *tilt_stat)
+static int mma7660_get_tilt(struct i2c_client *client, u8 *tilt_stat)
 {
 	do {
 		*tilt_stat = i2c_smbus_read_byte_data(client, TILT);
@@ -288,7 +288,7 @@ int mma7660_get_tilt(struct i2c_client *client, u8 *tilt_stat)
 	return 0;
 }
 
-void mma7660_poll(struct input_polled_dev *ipdev)
+static void mma7660_poll(struct input_polled_dev *ipdev)
 {
 
 	struct mma7660_dev *dev = ipdev->private;
@@ -324,7 +324,7 @@ void mma7660_poll(struct input_polled_dev *ipdev)
 	input_sync(idev);
 }
 
-void mma7660_open(struct input_polled_dev *ipdev)
+static void mma7660_open(struct input_polled_dev *ipdev)
 {
 	struct mma7660_dev *dev = ipdev->private;
 	struct i2c_client *client = dev->client;
@@ -332,7 +332,7 @@ void mma7660_open(struct input_polled_dev *ipdev)
 	pm_runtime_get_sync(&client->dev);
 }
 
-void mma7660_close(struct input_polled_dev *ipdev)
+static void mma7660_close(struct input_polled_dev *ipdev)
 {
 	struct mma7660_dev *dev = ipdev->private;
 	struct i2c_client *client = dev->client;
@@ -340,7 +340,7 @@ void mma7660_close(struct input_polled_dev *ipdev)
 	pm_runtime_put_sync_suspend(&client->dev);
 }
 
-ssize_t mma7660_debug_read(struct file *filp, char __user *ubuff,
+static ssize_t mma7660_debug_read(struct file *filp, char __user *ubuff,
 							size_t cnt, loff_t *off)
 {
 	int retcnt;
@@ -374,7 +374,7 @@ ssize_t mma7660_debug_read(struct file *filp, char __user *ubuff,
 	return cnt;
 }
 
-int mma7660_debug_open(struct inode *inode, struct file *filp)
+static int mma7660_debug_open(struct inode *inode, struct file *filp)
 {
 	int retval;
 	struct mma7660_dev *dev = filp->private_data = inode->i_private;
@@ -387,7 +387,7 @@ int mma7660_debug_open(struct inode *inode, struct file *filp)
 	return 0;
 }
 
-int mma7660_debug_close(struct inode *inode, struct file *filp)
+static int mma7660_debug_close(struct inode *inode, struct file *filp)
 {
 	struct mma7660_dev *dev = filp->private_data;
 	struct i2c_client *client = dev->client;
@@ -401,7 +401,7 @@ static const struct file_operations mma7660_debug_fops = {
 		.release	= mma7660_debug_close
 };
 
-int mma7660_dev_init(struct mma7660_dev *dev)
+static int mma7660_dev_init(struct mma7660_dev *dev)
 {
 	int retval;
 	struct i2c_client *client = dev->client;
@@ -446,7 +446,7 @@ int mma7660_dev_init(struct mma7660_dev *dev)
 	return 0;
 }
 
-void mma7660_input_init(struct input_polled_dev *ipdev)
+static void mma7660_input_init(struct input_polled_dev *ipdev)
 {
 	struct input_dev *idev = ipdev->input;
 
@@ -480,7 +480,7 @@ void mma7660_input_init(struct input_polled_dev *ipdev)
 
 static struct dentry *mma7660_dir;
 
-int mma7660_probe(struct i2c_client *client, const struct i2c_device_id *id)
+static int mma7660_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
 	int retval;
 	struct dentry *stat;
@@ -563,7 +563,7 @@ dev_init_fail:
 	return retval;
 }
 
-int mma7660_remove(struct i2c_client *client)
+static int mma7660_remove(struct i2c_client *client)
 {
 	struct mma7660_dev *dev;
 
@@ -582,13 +582,13 @@ int mma7660_remove(struct i2c_client *client)
 	return 0;
 }
 
-int mma7660_suspend(struct device *dev)
+static int mma7660_suspend(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	return i2c_smbus_write_byte_data(client, MODE, 0x00);
 }
 
-int mma7660_resume(struct device *dev)
+static int mma7660_resume(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	return i2c_smbus_write_byte_data(client, MODE, 0x01);
